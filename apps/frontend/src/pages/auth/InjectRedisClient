@@ -1,0 +1,42 @@
+// Inject Redis client
+constructor(
+  private readonly logger: LoggerService,
+  private readonly redisClient: Redis,
+) {}
+
+// Store challenge in Redis with expiration
+async generateChallenge(address: string): Promise<string> {
+  // Generate challenge as before
+  const challenge = `Sign this message to authenticate with our service: ${crypto.randomBytes(32).toString('hex')}`;
+  
+  // Store in Redis with expiration
+  const key = `wallet:challenge:${address.toLowerCase()}`;
+  await this.redisClient.set(key, challenge, 'EX', Math.floor(this.CHALLENGE_EXPIRY / 1000));
+  
+  return challenge;
+}
+
+// Retrieve challenge from Redis
+async verifySignature(address: string, signature: string): Promise<boolean> {
+  const lowerCaseAddress = address.toLowerCase();
+  const key = `wallet:challenge:${lowerCaseAddress}`;
+  
+  // Get challenge from Redis
+  const challenge = await this.redisClient.get(key);
+  
+  if (!challenge) {
+    return false;
+  }
+  
+  // Delete challenge from Redis
+  await this.redisClient.del(key);
+  
+  // Verify signature as before
+  try {
+    const signerAddress = ethers.verifyMessage(challenge, signature);
+    return signerAddress.toLowerCase() === lowerCaseAddress;
+  } catch (error) {
+    this.logger.error(`Error verifying signature: ${error.message}`, error.stack, 'WalletService');
+    return false;
+  }
+}

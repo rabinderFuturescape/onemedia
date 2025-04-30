@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-password}
+    networks:
+      - keycloak-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.1
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-password}
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-localhost}
+      KC_HOSTNAME_PORT: ${KEYCLOAK_PORT:-8080}
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY: edge
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - keycloak-network
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/auth/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  onesso:
+    build:
+      context: ./apps/onesso
+      dockerfile: Dockerfile
+    ports:
+      - "${ONESSO_PORT:-3002}:3002"
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KEYCLOAK_REALM: onesso
+      KEYCLOAK_CLIENT_ID: onesso-admin
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_PUBLIC_CLIENT_ID: onesso-public
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/gitroom
+      JWT_SECRET: ${JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - keycloak-network
+      - gitroom-network
+
+networks:
+  keycloak-network:
+    driver: bridge
+  gitroom-network:
+    external: true
+
+volumes:
+  keycloak-postgres-data:

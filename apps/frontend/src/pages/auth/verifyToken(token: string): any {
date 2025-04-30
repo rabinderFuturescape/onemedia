@@ -1,0 +1,9 @@
+verifyToken(token: string): any {
+  try {
+    return verify(token, process.env.JWT_SECRET, {
+      algorithms: ['HS256'], // Only allow specific algorithms
+    });
+  } catch (error) {
+    return null;
+  }
+}

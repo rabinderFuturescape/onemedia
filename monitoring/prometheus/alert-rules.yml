@@ -1,0 +1,72 @@
+groups:
+  - name: auth-service-alerts
+    rules:
+      # High error rate alert
+      - alert: HighErrorRate
+        expr: sum(rate(http_request_errors_total[5m])) / sum(rate(http_request_duration_seconds_count[5m])) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% for the last 5 minutes"
+
+      # Authentication failure rate alert
+      - alert: HighAuthFailureRate
+        expr: sum(rate(auth_failure_total[5m])) / sum(rate(auth_attempts_total[5m])) > 0.3
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High authentication failure rate"
+          description: "Authentication failure rate is above 30% for the last 5 minutes"
+
+      # Token validation failure rate alert
+      - alert: HighTokenValidationFailureRate
+        expr: sum(rate(token_validations_total{result="invalid"}[5m])) / sum(rate(token_validations_total[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High token validation failure rate"
+          description: "Token validation failure rate is above 10% for the last 5 minutes"
+
+      # Slow response time alert
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow response time detected"
+          description: "95th percentile of response time is above 1 second for the last 5 minutes"
+
+      # Service down alert
+      - alert: AuthServiceDown
+        expr: up{job="auth-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Auth service is down"
+          description: "Auth service has been down for more than 1 minute"
+
+      # High memory usage alert
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="auth-service"} > 1.5e+9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Auth service is using more than 1.5GB of memory for the last 5 minutes"
+
+      # High CPU usage alert
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="auth-service"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "Auth service is using more than 80% CPU for the last 5 minutes"

@@ -1,0 +1,165 @@
+version: '3.8'
+
+services:
+  backend:
+    image: ${DOCKER_REGISTRY}/gitroom-backend:latest
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - AUTH_SERVICE_URL=http://auth-service:3001/api/auth
+      - METRICS_API_KEY=${METRICS_API_KEY}
+    depends_on:
+      - postgres
+      - auth-service
+    networks:
+      - gitroom-network
+
+  auth-service:
+    image: ${DOCKER_REGISTRY}/gitroom-auth-service:latest
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI}
+      - FACEBOOK_CLIENT_ID=${FACEBOOK_CLIENT_ID}
+      - FACEBOOK_CLIENT_SECRET=${FACEBOOK_CLIENT_SECRET}
+      - FACEBOOK_REDIRECT_URI=${FACEBOOK_REDIRECT_URI}
+      - METRICS_API_KEY=${METRICS_API_KEY}
+      - LOG_LEVEL=info
+    depends_on:
+      - postgres
+    networks:
+      - gitroom-network
+    volumes:
+      - auth-service-logs:/usr/src/app/logs
+
+  frontend:
+    image: ${DOCKER_REGISTRY}/gitroom-frontend:latest
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://backend:3000
+    depends_on:
+      - backend
+    networks:
+      - gitroom-network
+
+  postgres:
+    image: postgres:14
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - gitroom-network
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./nginx/www:/var/www/html
+    depends_on:
+      - backend
+      - frontend
+      - auth-service
+    networks:
+      - gitroom-network
+
+  # Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    restart: always
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - gitroom-network
+    environment:
+      - METRICS_API_KEY=${METRICS_API_KEY}
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: always
+    volumes:
+      - ./monitoring/alertmanager:/etc/alertmanager
+      - alertmanager-data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "9093:9093"
+    networks:
+      - gitroom-network
+    environment:
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SLACK_WEBHOOK_CRITICAL=${SLACK_WEBHOOK_CRITICAL}
+      - SLACK_WEBHOOK_WARNING=${SLACK_WEBHOOK_WARNING}
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - gitroom-network
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    restart: always
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - gitroom-network
+
+networks:
+  gitroom-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  auth-service-logs:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:

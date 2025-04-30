@@ -1,0 +1,109 @@
+name: Auth Service CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/auth-service/**'
+      - '.github/workflows/auth-service.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/auth-service/**'
+      - '.github/workflows/auth-service.yml'
+
+jobs:
+  test:
+    name: Test Auth Service
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gitroom_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+        working-directory: ./apps/auth-service
+
+      - name: Run unit tests
+        run: npm test
+        working-directory: ./apps/auth-service
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gitroom_test
+          JWT_SECRET: test-jwt-secret
+          JWT_REFRESH_SECRET: test-jwt-refresh-secret
+
+      - name: Run e2e tests
+        run: npm run test:e2e
+        working-directory: ./apps/auth-service
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gitroom_test
+          JWT_SECRET: test-jwt-secret
+          JWT_REFRESH_SECRET: test-jwt-refresh-secret
+
+  build:
+    name: Build Auth Service
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: ./apps/auth-service
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/gitroom-auth-service:latest
+
+  deploy:
+    name: Deploy Auth Service
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy to production
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            cd /path/to/deployment
+            docker-compose pull auth-service
+            docker-compose up -d auth-service
+            docker system prune -af
