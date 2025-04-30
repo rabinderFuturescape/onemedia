@@ -1,0 +1,9 @@
+{
+  "name": "@gitroom/frontend",
+  "version": "0.0.1",
+  "private": true,
+  "devDependencies": {
+    "@types/mime": "^3.0.4",
+    "@types/node": "^18.16.9"
+  }
+}

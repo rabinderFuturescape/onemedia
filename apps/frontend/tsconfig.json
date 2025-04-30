@@ -1,12 +1,25 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "jsx": "preserve",
-    "allowJs": true,
+    "rootDir": "../..",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "experimentalDecorators": true,
+    "noPropertyAccessFromIndexSignature": false,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
     "forceConsistentCasingInFileNames": true,
+    "importHelpers": true,
+    "target": "es2015",
+    "module": "esnext",
+    "lib": ["es2020", "dom"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": "../..",
+    "jsx": "preserve",
+    "allowJs": true,
     "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -16,9 +29,16 @@
         "name": "next"
       }
     ],
-    "types": [
-      "node"
-    ]
+    "paths": {
+      "@gitroom/backend/*": ["apps/backend/src/*"],
+      "@gitroom/cron/*": ["apps/cron/src/*"],
+      "@gitroom/frontend/*": ["apps/frontend/src/*"],
+      "@gitroom/helpers/*": ["libraries/helpers/src/*"],
+      "@gitroom/nestjs-libraries/*": ["libraries/nestjs-libraries/src/*"],
+      "@gitroom/react/*": ["libraries/react-shared-libraries/src/*"],
+      "@gitroom/plugins/*": ["libraries/plugins/src/*"],
+      "@gitroom/workers/*": ["apps/workers/src/*"]
+    }
   },
   "include": [
     "**/*.ts",
@@ -28,7 +48,9 @@
     "../../apps/frontend/.next/types/**/*.ts",
     "../../dist/apps/frontend/.next/types/**/*.ts",
     "next-env.d.ts",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "src/types/**/*.d.ts",
+    "node.d.ts"
   ],
   "exclude": [
     "node_modules",
