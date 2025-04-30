@@ -32,10 +32,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (session?.user) {
       setUser(session.user);
+
+      // Handle token refresh errors
+      if (session.error === 'RefreshAccessTokenError' ||
+          session.error === 'InvalidRefreshToken' ||
+          session.error === 'NoRefreshTokenError') {
+        console.error('Session error detected:', session.error);
+        // Force re-authentication on token refresh errors
+        signOut({ callbackUrl: '/auth/login?error=token_expired' });
+      }
     } else {
       setUser(null);
     }
-  }, [session]);
+  }, [session, router]);
 
   const login = (redirectUrl?: string) => {
     signIn('onesso', { callbackUrl: redirectUrl || '/' });
