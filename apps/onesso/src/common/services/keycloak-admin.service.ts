@@ -50,7 +50,7 @@ export class KeycloakAdminService {
   }
 
   async getUserByEmail(email: string): Promise<any[]> {
-    return this.kcAdminClient.users.find({ email: email, exact: true });
+    return this.kcAdminClient.users.find({ email: email, exact: "true" });
   }
 
   async updateUser(id: string, user: any): Promise<void> {
@@ -106,7 +106,7 @@ export class KeycloakAdminService {
     const user = await this.kcAdminClient.users.findOne({ id });
     const attributes = user.attributes || {};
     attributes[name] = value;
-    
+
     await this.kcAdminClient.users.update(
       { id },
       { attributes }
@@ -128,13 +128,14 @@ export class KeycloakAdminService {
       },
     });
 
-    return role.name;
+    // Return the tenant name
+    return `tenant:${tenantName}`;
   }
 
   async assignUserToTenant(userId: string, tenantName: string): Promise<void> {
     // Assign the tenant role to the user
     await this.assignRoleToUser(userId, `tenant:${tenantName}`);
-    
+
     // Also set the tenant_id attribute for the user
     await this.setUserAttribute(userId, 'tenant_id', [tenantName]);
   }
@@ -142,17 +143,17 @@ export class KeycloakAdminService {
   async removeUserFromTenant(userId: string, tenantName: string): Promise<void> {
     // Remove the tenant role from the user
     await this.removeRoleFromUser(userId, `tenant:${tenantName}`);
-    
+
     // Check if user has any other tenant roles
     const roles = await this.getUserRoles(userId);
     const tenantRoles = roles.filter(role => role.name.startsWith('tenant:'));
-    
+
     if (tenantRoles.length === 0) {
       // If no other tenant roles, remove the tenant_id attribute
       const user = await this.kcAdminClient.users.findOne({ id: userId });
       const attributes = user.attributes || {};
       delete attributes['tenant_id'];
-      
+
       await this.kcAdminClient.users.update(
         { id: userId },
         { attributes }
@@ -190,7 +191,7 @@ export class KeycloakAdminService {
 
   async updateTenant(tenantName: string, tenantDisplayName: string): Promise<void> {
     const role = await this.kcAdminClient.roles.findOneByName({ name: `tenant:${tenantName}` });
-    
+
     await this.kcAdminClient.roles.updateByName(
       { name: `tenant:${tenantName}` },
       {
@@ -210,7 +211,7 @@ export class KeycloakAdminService {
   async getUsersInTenant(tenantName: string): Promise<any[]> {
     const role = await this.kcAdminClient.roles.findOneByName({ name: `tenant:${tenantName}` });
     const users = await this.kcAdminClient.roles.findUsersWithRole({ name: `tenant:${tenantName}` });
-    
+
     return users;
   }
 }

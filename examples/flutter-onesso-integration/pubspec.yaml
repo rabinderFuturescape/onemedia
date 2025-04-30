@@ -1,0 +1,24 @@
+name: flutter_onesso_integration
+description: A Flutter application demonstrating onesso authentication integration.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^0.13.5
+  shared_preferences: ^2.0.15
+  url_launcher: ^6.1.5
+  uni_links: ^0.5.1
+  cupertino_icons: ^1.0.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.1
+
+flutter:
+  uses-material-design: true

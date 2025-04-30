@@ -96,6 +96,9 @@
 ## Quick Start
 To have the project up and running, please follow the [Quick Start Guide](https://docs.postiz.com/quickstart)
 
+## Developer Resources
+- [Docker Testing Guide](docs/developer-guide-docker.md): How to run the Postiz Docker image for testing the entire project
+
 ## Invest in the Postiz Coin :)
 DMsTbeCfX1crgAse5tver98KAMarPWeP3d6U3Gmmpump
 

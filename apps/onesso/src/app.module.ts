@@ -9,6 +9,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { NextAuthModule } from './modules/nextauth/nextauth.module';
 import { CommonModule } from './common/common.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CommonModule } from './common/common.module';
     ProvidersModule,
     NextAuthModule,
     CommonModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [

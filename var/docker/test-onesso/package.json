@@ -1,0 +1,12 @@
+{
+  "name": "test-onesso",
+  "version": "1.0.0",
+  "description": "Test onesso integration",
+  "main": "test-onesso-integration.js",
+  "scripts": {
+    "start": "node test-onesso-integration.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

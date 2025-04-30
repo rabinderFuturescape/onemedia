@@ -8,6 +8,7 @@ dist
 **/.git
 **/dist
 **/*.md
+!docs/developer-guide-docker.md
 **/LICENSE
 **/npm-debug.log
 **/*.vscode

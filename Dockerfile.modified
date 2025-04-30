@@ -1,0 +1,43 @@
+FROM node:20.17-alpine3.19 as base
+
+# Install required packages
+RUN apk add --no-cache \
+    caddy \
+    bash=5.2.21-r0 \
+    supervisor=4.2.5-r4 \
+    python3
+
+# Set working directory
+WORKDIR /app
+
+# Copy entrypoint script and configuration files
+COPY var/docker/entrypoint-modified.sh /app/entrypoint.sh
+COPY var/docker/run-static-server.sh /app/run-static-server.sh
+COPY var/docker/supervisord.conf /etc/supervisord.conf
+COPY var/docker/supervisord /app/supervisord_available_configs/
+COPY var/docker/Caddyfile.modified /app/Caddyfile
+COPY var/docker/static/ /app/var/docker/static/
+COPY .env.example /config/postiz.env
+
+# Copy package files
+COPY package*.json ./
+COPY nx.json tsconfig.base.json ./
+
+# Create necessary directories
+RUN mkdir -p /app/dist/apps/frontend /app/dist/apps/backend /app/dist/apps/workers /app/dist/apps/cron
+
+# Copy documentation
+COPY docs/ /app/docs/
+
+# Copy source code (optional, for reference)
+COPY apps/ /app/apps/
+COPY libraries/ /app/libraries/
+
+# Make scripts executable
+RUN chmod +x /app/entrypoint.sh /app/run-static-server.sh
+
+# Expose port
+EXPOSE 5000
+
+# Set entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]

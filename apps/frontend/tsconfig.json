@@ -14,7 +14,10 @@
     "importHelpers": true,
     "target": "es2015",
     "module": "esnext",
-    "lib": ["es2020", "dom"],
+    "lib": [
+      "es2020",
+      "dom"
+    ],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": "../..",
@@ -30,15 +33,34 @@
       }
     ],
     "paths": {
-      "@gitroom/backend/*": ["apps/backend/src/*"],
-      "@gitroom/cron/*": ["apps/cron/src/*"],
-      "@gitroom/frontend/*": ["apps/frontend/src/*"],
-      "@gitroom/helpers/*": ["libraries/helpers/src/*"],
-      "@gitroom/nestjs-libraries/*": ["libraries/nestjs-libraries/src/*"],
-      "@gitroom/react/*": ["libraries/react-shared-libraries/src/*"],
-      "@gitroom/plugins/*": ["libraries/plugins/src/*"],
-      "@gitroom/workers/*": ["apps/workers/src/*"]
-    }
+      "@gitroom/backend/*": [
+        "apps/backend/src/*"
+      ],
+      "@gitroom/cron/*": [
+        "apps/cron/src/*"
+      ],
+      "@gitroom/frontend/*": [
+        "apps/frontend/src/*"
+      ],
+      "@gitroom/helpers/*": [
+        "libraries/helpers/src/*"
+      ],
+      "@gitroom/nestjs-libraries/*": [
+        "libraries/nestjs-libraries/src/*"
+      ],
+      "@gitroom/react/*": [
+        "libraries/react-shared-libraries/src/*"
+      ],
+      "@gitroom/plugins/*": [
+        "libraries/plugins/src/*"
+      ],
+      "@gitroom/workers/*": [
+        "apps/workers/src/*"
+      ]
+    },
+    "types": [],
+    "strict": false,
+    "strictNullChecks": true
   },
   "include": [
     "**/*.ts",

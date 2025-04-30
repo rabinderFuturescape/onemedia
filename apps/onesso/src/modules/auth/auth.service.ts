@@ -284,7 +284,7 @@ export class AuthService {
       // Initiate forgot password flow in Keycloak
       await this.keycloakAdminService.getClient().users.executeActionsEmail({
         id: user.id,
-        actions: ['UPDATE_PASSWORD'],
+        actions: ['UPDATE_PASSWORD' as any],
         redirectUri: this.configService.get<string>('FRONTEND_URL'),
       });
 
