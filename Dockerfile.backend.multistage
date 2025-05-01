@@ -1,0 +1,86 @@
+# ┌────────── Builder Stage ──────────────────────────────────────────────────
+FROM node:20-slim AS builder
+WORKDIR /app
+
+# Install build tools + canvas libs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 \
+      build-essential \
+      pkg-config \
+      libcairo2-dev \
+      libpango1.0-dev \
+      libjpeg-dev \
+      libgif-dev \
+      librsvg2-dev \
+      git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for build
+ENV PYTHON=/usr/bin/python3
+ENV npm_config_python=/usr/bin/python3
+ENV NODE_ENV=development
+
+# Install node-gyp globally
+RUN npm install -g node-gyp
+
+# Copy package files
+COPY package.json package-lock.json nx.json tsconfig.base.json ./
+COPY .npmrc ./.npmrc
+
+# Install all dependencies (including devDependencies) but skip scripts
+RUN npm install --legacy-peer-deps --ignore-scripts
+
+# Copy source code
+COPY apps/backend ./apps/backend
+COPY libraries ./libraries
+
+# Build the backend
+RUN npm run build:backend
+# └────────────────────────────────────────────────────────────────────────────
+
+# ┌────────── Final (Runtime) Stage ───────────────────────────────────────────
+FROM node:20-slim AS runner
+WORKDIR /app
+
+# Install runtime dependencies for canvas and Python for node-gyp
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 \
+      build-essential \
+      pkg-config \
+      libcairo2-dev \
+      libpango1.0-dev \
+      libjpeg-dev \
+      libgif-dev \
+      librsvg2-dev \
+      git \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3 /usr/bin/python
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV DATABASE_URL=postgresql://postiz-user:postiz-password@postiz-postgres:5432/postiz-db-local
+ENV REDIS_URL=redis://postiz-redis:6379
+ENV FRONTEND_URL=http://localhost:4200
+ENV ONESSO_URL=http://mock-onesso:3002
+ENV JWT_SECRET=onesso-jwt-secret
+ENV PYTHON=/usr/bin/python3
+ENV npm_config_python=/usr/bin/python3
+
+# Copy package files
+COPY package.json package-lock.json ./
+COPY .npmrc ./.npmrc
+
+# Install only production dependencies but skip scripts
+RUN npm install --omit=dev --no-optional --no-fund --legacy-peer-deps --ignore-scripts
+
+# Copy built artifacts from builder stage
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/apps/backend/src/views ./dist/apps/backend/src/views
+
+# Expose the port
+EXPOSE 3000
+
+# Start the backend app
+CMD ["node", "dist/apps/backend/main.js"]
+# └────────────────────────────────────────────────────────────────────────────

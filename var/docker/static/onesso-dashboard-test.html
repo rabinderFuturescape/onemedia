@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>onesso Dashboard Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .result {
+            margin-top: 20px;
+        }
+        .step {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>onesso Dashboard Test</h1>
+    <p>This page will help you test the authentication flow and navigate to the dashboard.</p>
+
+    <div class="step">
+        <h2>Step 1: Get Authentication Token</h2>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button id="getToken">Login with onesso</button>
+            <button id="directLogin">Direct Login</button>
+        </div>
+
+        <div id="loginForm" style="display: none; margin-top: 10px;">
+            <div style="margin-bottom: 10px;">
+                <label for="username">Username:</label>
+                <input type="text" id="username" value="admin" style="padding: 5px; margin-left: 5px;">
+            </div>
+            <div style="margin-bottom: 10px;">
+                <label for="password">Password:</label>
+                <input type="password" id="password" value="admin" style="padding: 5px; margin-left: 5px;">
+            </div>
+            <button id="submitLogin">Submit</button>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h3>Quick Login Options:</h3>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button id="loginAsAdmin">Login as Admin</button>
+                <button id="loginAsUser">Login as User</button>
+                <button id="loginAsTenantAdmin">Login as Tenant Admin</button>
+            </div>
+        </div>
+
+        <div id="tokenResult" class="result"></div>
+    </div>
+
+    <div class="step">
+        <h2>Step 2: Set Authentication Cookie</h2>
+        <button id="setCookie" disabled>Set Auth Cookie</button>
+        <div id="cookieResult" class="result"></div>
+    </div>
+
+    <div class="step">
+        <h2>Step 3: Navigate to Dashboard</h2>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button id="navigateToDashboard" disabled>Go to Dashboard</button>
+            <button id="goToLogin">Go to Login Page</button>
+        </div>
+        <div id="navigationResult" class="result"></div>
+    </div>
+
+    <div class="step">
+        <h2>Debug Information</h2>
+        <button id="showDebugInfo">Show Debug Info</button>
+        <div id="debugResult" class="result"></div>
+    </div>
+
+    <script>
+        // Global variables
+        let authToken = '';
+
+        // Toggle login form
+        document.getElementById('directLogin').addEventListener('click', function() {
+            const loginForm = document.getElementById('loginForm');
+            loginForm.style.display = loginForm.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Quick login options
+        document.getElementById('loginAsAdmin').addEventListener('click', async function() {
+            await loginWithCredentials('admin', 'admin');
+        });
+
+        document.getElementById('loginAsUser').addEventListener('click', async function() {
+            await loginWithCredentials('user', 'user');
+        });
+
+        document.getElementById('loginAsTenantAdmin').addEventListener('click', async function() {
+            await loginWithCredentials('tenant1admin', 'password');
+        });
+
+        // Helper function for login
+        async function loginWithCredentials(username, password) {
+            try {
+                document.getElementById('tokenResult').innerHTML = `
+                    <p>Logging in with username: ${username}...</p>
+                `;
+
+                const response = await fetch('http://localhost:3002/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    document.getElementById('tokenResult').innerHTML = `
+                        <p class="success">Login successful!</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    document.getElementById('setCookie').disabled = false;
+                } else {
+                    const errorText = await response.text();
+                    document.getElementById('tokenResult').innerHTML = `
+                        <p class="error">Login failed: ${response.status} ${response.statusText}</p>
+                        <pre>${errorText}</pre>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('tokenResult').innerHTML = `
+                    <p class="error">Error: ${error.message}</p>
+                `;
+            }
+        }
+
+        // Direct login with username/password
+        document.getElementById('submitLogin').addEventListener('click', async function() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            await loginWithCredentials(username, password);
+        });
+
+        // Step 1: Get Authentication Token with onesso
+        document.getElementById('getToken').addEventListener('click', async function() {
+            try {
+                const response = await fetch('http://localhost:3002/api/auth/login/onesso', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    redirect: 'follow'
+                });
+
+                // This will likely redirect, but in case it doesn't:
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    document.getElementById('tokenResult').innerHTML = `
+                        <p class="success">Token received!</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    document.getElementById('setCookie').disabled = false;
+                } else {
+                    document.getElementById('tokenResult').innerHTML = `
+                        <p class="error">Failed to get token. Redirecting to onesso login...</p>
+                    `;
+                    // Redirect to onesso login
+                    window.location.href = 'http://localhost:3002/api/auth/login/onesso?redirect_url=' + encodeURIComponent(window.location.href);
+                }
+            } catch (error) {
+                document.getElementById('tokenResult').innerHTML = `
+                    <p class="error">Error: ${error.message}</p>
+                    <p>Redirecting to onesso login...</p>
+                `;
+                // Redirect to onesso login
+                window.location.href = 'http://localhost:3002/api/auth/login/onesso?redirect_url=' + encodeURIComponent(window.location.href);
+            }
+        });
+
+        // Step 2: Set Authentication Cookie
+        document.getElementById('setCookie').addEventListener('click', function() {
+            try {
+                // Get token from URL if available
+                const urlParams = new URLSearchParams(window.location.search);
+                const tokenFromUrl = urlParams.get('token');
+
+                if (tokenFromUrl) {
+                    authToken = tokenFromUrl;
+                    // Remove token from URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+
+                if (!authToken) {
+                    document.getElementById('cookieResult').innerHTML = `
+                        <p class="error">No token available. Please complete Step 1 first.</p>
+                    `;
+                    return;
+                }
+
+                // Set the auth cookie - use SameSite=None and Secure for cross-domain cookies
+                document.cookie = `auth=${authToken}; path=/; max-age=86400; SameSite=Lax`;
+
+                document.getElementById('cookieResult').innerHTML = `
+                    <p class="success">Auth cookie set successfully!</p>
+                    <pre>auth=${authToken.substring(0, 20)}...</pre>
+                `;
+                document.getElementById('navigateToDashboard').disabled = false;
+            } catch (error) {
+                document.getElementById('cookieResult').innerHTML = `
+                    <p class="error">Error setting cookie: ${error.message}</p>
+                `;
+            }
+        });
+
+        // Step 3: Navigate to Dashboard
+        document.getElementById('navigateToDashboard').addEventListener('click', async function() {
+            try {
+                document.getElementById('navigationResult').innerHTML = `
+                    <p>Navigating to dashboard...</p>
+                `;
+
+                // Create a fetch request to test the API
+                document.getElementById('navigationResult').innerHTML += `
+                    <p>Testing API connection...</p>
+                `;
+
+                try {
+                    // Test our custom endpoint with better error handling
+                    document.getElementById('navigationResult').innerHTML += `
+                        <p>Testing custom API endpoint...</p>
+                    `;
+
+                    try {
+                        const testResponse = await fetch('http://localhost:4200/api/auth/test', {
+                            credentials: 'include',
+                            mode: 'cors'
+                        });
+
+                        if (testResponse.ok) {
+                            const testData = await testResponse.json();
+                            document.getElementById('navigationResult').innerHTML += `
+                                <p>Test API Response:</p>
+                                <pre>${JSON.stringify(testData, null, 2)}</pre>
+                            `;
+                        } else {
+                            document.getElementById('navigationResult').innerHTML += `
+                                <p class="error">Test API Error: ${testResponse.status} ${testResponse.statusText}</p>
+                            `;
+                        }
+                    } catch (testError) {
+                        document.getElementById('navigationResult').innerHTML += `
+                            <p class="error">Test API Error: ${testError.message}</p>
+                            <p>This might be a CORS issue. Try opening the test auth page directly.</p>
+                        `;
+                    }
+
+                    // Test the mock user endpoint
+                    document.getElementById('navigationResult').innerHTML += `
+                        <p>Testing mock user endpoint...</p>
+                    `;
+
+                    try {
+                        const userResponse = await fetch('http://localhost:4200/api/mock/user/self', {
+                            credentials: 'include',
+                            mode: 'cors'
+                        });
+
+                        if (userResponse.ok) {
+                            const userData = await userResponse.json();
+                            document.getElementById('navigationResult').innerHTML += `
+                                <p>Mock User API Response:</p>
+                                <pre>${JSON.stringify(userData, null, 2)}</pre>
+                            `;
+                        } else {
+                            document.getElementById('navigationResult').innerHTML += `
+                                <p class="error">Mock User API Error: ${userResponse.status} ${userResponse.statusText}</p>
+                            `;
+                        }
+                    } catch (userError) {
+                        document.getElementById('navigationResult').innerHTML += `
+                            <p class="error">Mock User API Error: ${userError.message}</p>
+                        `;
+                    }
+
+                    // Test the session endpoint with better error handling
+                    document.getElementById('navigationResult').innerHTML += `
+                        <p>Testing session endpoint...</p>
+                    `;
+
+                    try {
+                        // Create a form to submit to avoid CORS issues
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = 'http://localhost:4200/api/auth/session';
+                        form.target = 'sessionFrame';
+                        form.style.display = 'none';
+
+                        // Create an iframe to receive the response
+                        const iframe = document.createElement('iframe');
+                        iframe.name = 'sessionFrame';
+                        iframe.style.display = 'none';
+                        document.body.appendChild(iframe);
+                        document.body.appendChild(form);
+
+                        // Try direct fetch first
+                        try {
+                            const sessionResponse = await fetch('http://localhost:4200/api/auth/session', {
+                                credentials: 'include',
+                                mode: 'cors',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json'
+                                }
+                            });
+
+                            if (sessionResponse.ok) {
+                                const sessionData = await sessionResponse.json();
+                                document.getElementById('navigationResult').innerHTML += `
+                                    <p>Session API Response:</p>
+                                    <pre>${JSON.stringify(sessionData, null, 2)}</pre>
+                                `;
+                            } else {
+                                throw new Error(`${sessionResponse.status} ${sessionResponse.statusText}`);
+                            }
+                        } catch (directFetchError) {
+                            // If direct fetch fails, try using the test auth page
+                            document.getElementById('navigationResult').innerHTML += `
+                                <p class="warning">Direct session fetch failed: ${directFetchError.message}</p>
+                                <p>Trying alternative method...</p>
+                            `;
+
+                            // Create a button to open the test auth page
+                            const testAuthButton = document.createElement('button');
+                            testAuthButton.textContent = 'Open Test Auth Page';
+                            testAuthButton.style.marginTop = '10px';
+                            testAuthButton.style.padding = '8px 16px';
+                            testAuthButton.style.backgroundColor = '#4CAF50';
+                            testAuthButton.style.color = 'white';
+                            testAuthButton.style.border = 'none';
+                            testAuthButton.style.borderRadius = '4px';
+                            testAuthButton.style.cursor = 'pointer';
+
+                            testAuthButton.onclick = () => {
+                                window.open('http://localhost:4200/test-auth', '_blank');
+                            };
+
+                            document.getElementById('navigationResult').appendChild(testAuthButton);
+                        }
+                    } catch (sessionError) {
+                        document.getElementById('navigationResult').innerHTML += `
+                            <p class="error">Session API Error: ${sessionError.message}</p>
+                            <p>Please try opening the test auth page directly.</p>
+                        `;
+
+                        // Create a button to open the test auth page
+                        const testAuthButton = document.createElement('button');
+                        testAuthButton.textContent = 'Open Test Auth Page';
+                        testAuthButton.style.marginTop = '10px';
+                        testAuthButton.style.padding = '8px 16px';
+                        testAuthButton.style.backgroundColor = '#4CAF50';
+                        testAuthButton.style.color = 'white';
+                        testAuthButton.style.border = 'none';
+                        testAuthButton.style.borderRadius = '4px';
+                        testAuthButton.style.cursor = 'pointer';
+
+                        testAuthButton.onclick = () => {
+                            window.open('http://localhost:4200/test-auth', '_blank');
+                        };
+
+                        document.getElementById('navigationResult').appendChild(testAuthButton);
+                    }
+                } catch (apiError) {
+                    document.getElementById('navigationResult').innerHTML += `
+                        <p class="error">General API Error: ${apiError.message}</p>
+                    `;
+                }
+
+                // Create an iframe to test the navigation
+                const iframe = document.createElement('iframe');
+                iframe.style.width = '100%';
+                iframe.style.height = '300px';
+                iframe.style.border = '1px solid #ccc';
+                iframe.src = 'http://localhost:4200/';
+
+                // Add the iframe to the page
+                document.getElementById('navigationResult').appendChild(iframe);
+
+                // Also provide direct links
+                const linkContainer = document.createElement('div');
+                linkContainer.style.marginTop = '15px';
+                linkContainer.style.display = 'flex';
+                linkContainer.style.flexDirection = 'column';
+                linkContainer.style.gap = '10px';
+
+                // Dashboard link
+                const dashboardLink = document.createElement('a');
+                dashboardLink.href = 'http://localhost:4200/';
+                dashboardLink.target = '_blank';
+                dashboardLink.textContent = 'Open dashboard in new tab';
+                dashboardLink.style.color = 'blue';
+                dashboardLink.style.textDecoration = 'underline';
+
+                // Test auth page link
+                const testAuthLink = document.createElement('a');
+                testAuthLink.href = 'http://localhost:4200/test-auth';
+                testAuthLink.target = '_blank';
+                testAuthLink.textContent = 'Open auth test page in new tab';
+                testAuthLink.style.color = 'green';
+                testAuthLink.style.textDecoration = 'underline';
+
+                linkContainer.appendChild(dashboardLink);
+                linkContainer.appendChild(testAuthLink);
+                document.getElementById('navigationResult').appendChild(linkContainer);
+            } catch (error) {
+                document.getElementById('navigationResult').innerHTML = `
+                    <p class="error">Error navigating to dashboard: ${error.message}</p>
+                `;
+            }
+        });
+
+        // Go to Login Page
+        document.getElementById('goToLogin').addEventListener('click', function() {
+            try {
+                document.getElementById('navigationResult').innerHTML = `
+                    <p>Navigating to login page...</p>
+                `;
+
+                // Navigate to the login page
+                window.location.href = 'http://localhost:4200/auth';
+            } catch (error) {
+                document.getElementById('navigationResult').innerHTML = `
+                    <p class="error">Error navigating to login page: ${error.message}</p>
+                `;
+            }
+        });
+
+        // Debug Information
+        document.getElementById('showDebugInfo').addEventListener('click', function() {
+            const cookies = document.cookie.split(';').map(cookie => cookie.trim());
+
+            document.getElementById('debugResult').innerHTML = `
+                <h3>Cookies:</h3>
+                <pre>${cookies.join('\n')}</pre>
+
+                <h3>Auth Token:</h3>
+                <pre>${authToken ? authToken.substring(0, 20) + '...' : 'No token available'}</pre>
+
+                <h3>URL Parameters:</h3>
+                <pre>${window.location.search}</pre>
+            `;
+        });
+
+        // Check for token in URL on page load
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+
+            if (token) {
+                authToken = token;
+                document.getElementById('tokenResult').innerHTML = `
+                    <p class="success">Token received from URL!</p>
+                    <pre>${token.substring(0, 20)}...</pre>
+                `;
+                document.getElementById('setCookie').disabled = false;
+
+                // Remove token from URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -22,6 +22,7 @@ import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { ExtractContentService } from '@gitroom/nestjs-libraries/openai/extract.content.service';
 import { CodesService } from '@gitroom/nestjs-libraries/services/codes.service';
 import { CopilotController } from '@gitroom/backend/api/routes/copilot.controller';
+import { AuthClientService } from '@gitroom/backend/services/auth-client/mock-auth-client.service';
 import { AgenciesController } from '@gitroom/backend/api/routes/agencies.controller';
 import { PublicController } from '@gitroom/backend/api/routes/public.controller';
 import { RootController } from '@gitroom/backend/api/routes/root.controller';
@@ -74,7 +75,8 @@ const authenticatedController = [
     TrackService,
     ShortLinkService,
     Nowpayments,
-    McpService
+    McpService,
+    AuthClientService
   ],
   get exports() {
     return [...this.imports, ...this.providers];

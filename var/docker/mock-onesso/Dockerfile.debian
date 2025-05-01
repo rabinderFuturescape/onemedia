@@ -1,0 +1,37 @@
+FROM node:18-slim
+
+WORKDIR /usr/src/app
+
+# Install build tools + canvas libs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 \
+      build-essential \
+      pkg-config \
+      libcairo2-dev \
+      libpango1.0-dev \
+      libjpeg-dev \
+      libgif-dev \
+      librsvg2-dev \
+      git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python path
+ENV PYTHON=/usr/bin/python3
+
+# Install node-gyp globally
+RUN npm install -g node-gyp
+
+# Copy package.json and package-lock.json
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --no-optional --legacy-peer-deps
+
+# Copy app source
+COPY . .
+
+# Expose port
+EXPOSE 3002
+
+# Start the app
+CMD ["node", "server.js"]

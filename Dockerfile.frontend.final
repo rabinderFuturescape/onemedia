@@ -1,0 +1,72 @@
+# ┌───────── Builder ───────────────────────────────────────────────────────────
+FROM node:20-slim AS builder
+WORKDIR /app
+
+# Install build deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-dev python-is-python3 \
+      build-essential pkg-config \
+      libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for build
+ENV NEXT_PUBLIC_BACKEND_URL=http://localhost:3000/api
+ENV NEXT_PUBLIC_ONESSO_URL=http://localhost:3002
+
+# Copy package files
+COPY package*.json nx.json tsconfig.base.json ./
+COPY .npmrc ./
+
+# Install all deps
+RUN npm ci --legacy-peer-deps
+
+# Copy the rest & run your generators
+COPY apps/frontend ./apps/frontend
+COPY libraries ./libraries
+
+# Build the frontend
+RUN npm run build:frontend
+
+# └──────────────────────────────────────────────────────────────────────────────
+
+# ┌───────── Runner ────────────────────────────────────────────────────────────
+FROM node:20-slim AS runner
+WORKDIR /app
+
+# Install runtime dependencies for canvas
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libcairo2 \
+      libpango-1.0-0 \
+      libpangocairo-1.0-0 \
+      libjpeg62-turbo \
+      libgif7 \
+      librsvg2-2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=4200
+ENV NEXT_PUBLIC_BACKEND_URL=http://localhost:3000/api
+ENV BACKEND_URL=http://postiz-backend:3000/api
+ENV BACKEND_INTERNAL_URL=http://postiz-backend:3000/api
+ENV FRONTEND_URL=http://localhost:4200
+ENV STORAGE_PROVIDER=local
+ENV IS_GENERAL=true
+ENV NOT_SECURED=true
+ENV NEXT_PUBLIC_ONESSO_URL=http://localhost:3002
+ENV NEXTAUTH_URL=http://localhost:4200
+ENV NEXTAUTH_SECRET=onesso-nextauth-secret
+
+# Copy only built artifacts + prod deps
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/frontend/public ./apps/frontend/public
+COPY --from=builder /app/apps/frontend/.next ./apps/frontend/.next
+COPY package*.json ./
+
+# Expose the port
+EXPOSE 4200
+
+# Start the frontend app
+CMD ["node", "dist/apps/frontend/main.js"]
+# └──────────────────────────────────────────────────────────────────────────────

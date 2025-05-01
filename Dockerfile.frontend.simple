@@ -1,0 +1,194 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-dev python-is-python3 \
+      build-essential pkg-config \
+      libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=4200
+ENV NEXT_PUBLIC_BACKEND_URL=http://localhost:3000/api
+ENV BACKEND_URL=http://postiz-backend:3000/api
+ENV BACKEND_INTERNAL_URL=http://postiz-backend:3000/api
+ENV FRONTEND_URL=http://localhost:4200
+ENV STORAGE_PROVIDER=local
+ENV IS_GENERAL=true
+ENV NOT_SECURED=true
+ENV NEXT_PUBLIC_ONESSO_URL=http://localhost:3002
+ENV NEXTAUTH_URL=http://localhost:4200
+ENV NEXTAUTH_SECRET=onesso-nextauth-secret
+ENV PYTHON=/usr/bin/python3
+ENV npm_config_python=/usr/bin/python3
+
+# Create a simple Next.js app for testing
+RUN npm init -y && \
+    npm install next react react-dom next-auth
+
+# Create a simple Next.js app structure
+RUN mkdir -p pages/api/auth
+
+# Create a simple Next.js app
+COPY <<EOF /app/pages/index.js
+import { useSession, signIn, signOut } from "next-auth/react";
+import { useEffect, useState } from "react";
+
+export default function Home() {
+  const { data: session } = useSession();
+  const [backendHealth, setBackendHealth] = useState(null);
+
+  useEffect(() => {
+    // Check backend health
+    fetch(process.env.NEXT_PUBLIC_BACKEND_URL + "/health")
+      .then(res => res.json())
+      .then(data => setBackendHealth(data))
+      .catch(err => console.error("Error checking backend health:", err));
+  }, []);
+
+  if (session) {
+    return (
+      <>
+        <h1>Welcome, {session.user.email}</h1>
+        <p>You are signed in!</p>
+        <div>
+          <h2>Session Data:</h2>
+          <pre>{JSON.stringify(session, null, 2)}</pre>
+        </div>
+        <div>
+          <h2>Backend Health:</h2>
+          <pre>{JSON.stringify(backendHealth, null, 2)}</pre>
+        </div>
+        <button onClick={() => signOut()}>Sign out</button>
+      </>
+    );
+  }
+  return (
+    <>
+      <h1>OneSSO Authentication Test</h1>
+      <p>You are not signed in.</p>
+      <button onClick={() => signIn("onesso")}>Sign in with OneSSO</button>
+    </>
+  );
+}
+EOF
+
+# Create NextAuth.js API route
+COPY <<EOF /app/pages/api/auth/[...nextauth].js
+import NextAuth from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+
+export default NextAuth({
+  providers: [
+    CredentialsProvider({
+      id: "onesso",
+      name: "OneSSO",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        try {
+          // Make a request to the OneSSO service
+          const res = await fetch(process.env.NEXT_PUBLIC_ONESSO_URL + "/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: credentials.username,
+              password: credentials.password
+            })
+          });
+
+          const data = await res.json();
+
+          if (res.ok && data.access_token) {
+            // Return the user object
+            return {
+              id: data.user.id,
+              name: data.user.username,
+              email: data.user.email,
+              image: null,
+              accessToken: data.access_token,
+              roles: data.user.roles,
+              tenants: data.user.tenants,
+              activeTenant: data.user.active_tenant
+            };
+          }
+
+          return null;
+        } catch (error) {
+          console.error("Auth error:", error);
+          return null;
+        }
+      }
+    })
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      // Add user info to the token
+      if (user) {
+        token.accessToken = user.accessToken;
+        token.roles = user.roles;
+        token.tenants = user.tenants;
+        token.activeTenant = user.activeTenant;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      // Add token info to the session
+      session.accessToken = token.accessToken;
+      session.user.roles = token.roles;
+      session.user.tenants = token.tenants;
+      session.user.activeTenant = token.activeTenant;
+      return session;
+    }
+  },
+  pages: {
+    signIn: "/",
+    error: "/"
+  },
+  secret: process.env.NEXTAUTH_SECRET
+});
+EOF
+
+# Create _app.js file
+COPY <<EOF /app/pages/_app.js
+import { SessionProvider } from "next-auth/react";
+
+export default function App({ Component, pageProps: { session, ...pageProps } }) {
+  return (
+    <SessionProvider session={session}>
+      <Component {...pageProps} />
+    </SessionProvider>
+  );
+}
+EOF
+
+# Create package.json
+COPY <<EOF /app/package.json
+{
+  "name": "postiz-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4200",
+    "build": "next build",
+    "start": "next start -p 4200"
+  },
+  "dependencies": {
+    "next": "latest",
+    "next-auth": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  }
+}
+EOF
+
+# Expose the port
+EXPOSE 4200
+
+# Start the Next.js app
+CMD ["npm", "run", "dev"]

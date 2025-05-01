@@ -10,6 +10,7 @@ import { ExtractContentService } from '@gitroom/nestjs-libraries/openai/extract.
 import { CodesService } from '@gitroom/nestjs-libraries/services/codes.service';
 import { PublicIntegrationsController } from '@gitroom/backend/public-api/routes/v1/public.integrations.controller';
 import { PublicAuthMiddleware } from '@gitroom/backend/services/auth/public.auth.middleware';
+import { AuthClientService } from '@gitroom/backend/services/auth-client/mock-auth-client.service';
 
 const authenticatedController = [
   PublicIntegrationsController
@@ -30,6 +31,7 @@ const authenticatedController = [
     PermissionsService,
     CodesService,
     IntegrationManager,
+    AuthClientService,
   ],
   get exports() {
     return [...this.imports, ...this.providers];

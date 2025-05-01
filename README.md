@@ -92,12 +92,110 @@
 - Prisma (Default to PostgreSQL)
 - Redis (BullMQ)
 - Resend (email notifications)
+- Keycloak/OneSSO (Authentication)
+- Prometheus & Grafana (Monitoring)
+- Docker & Docker Compose (Containerization)
+
+## Architecture
+
+Postiz follows a microservices architecture with the following components:
+
+- **Frontend**: Next.js application with server-side rendering
+- **Backend**: NestJS API server with PostgreSQL database
+- **Authentication**: Keycloak/OneSSO integration for secure authentication
+- **Caching**: Redis for caching and session management
+- **Monitoring**: Prometheus and Grafana for monitoring and alerting
 
 ## Quick Start
 To have the project up and running, please follow the [Quick Start Guide](https://docs.postiz.com/quickstart)
 
+### Prerequisites
+
+- Docker and Docker Compose
+- Node.js 20.x
+- npm 9.x
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/rabinderFuturescape/onemedia.git
+cd onemedia
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Start the development environment:
+
+```bash
+docker-compose up -d
+```
+
+4. Access the application:
+   - Frontend: http://localhost:4200
+   - Backend API: http://localhost:3000/api
+   - API Documentation: http://localhost:3000/api/docs
+   - Keycloak: http://localhost:8080/auth
+
+### Development
+
+For local development, you can run the frontend and backend separately:
+
+```bash
+# Run frontend in development mode
+npm run dev:frontend
+
+# Run backend in development mode
+npm run dev:backend
+```
+
 ## Developer Resources
 - [Docker Testing Guide](docs/developer-guide-docker.md): How to run the Postiz Docker image for testing the entire project
+- [onesso Authentication Guide](docs/developer-guide-onesso.md): How to run the application with onesso authentication
+- [Folder Structure Guide](FOLDER_STRUCTURE.md): Standardized folder structure for the codebase
+- [API Documentation](http://localhost:3000/api/docs): Interactive API documentation
+
+## Deployment
+
+### Production Deployment
+
+For production deployment, use the production Docker Compose file:
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### Monitoring
+
+Postiz includes a comprehensive monitoring stack with Prometheus and Grafana:
+
+```bash
+docker-compose -f docker-compose.monitoring.yml up -d
+```
+
+Access the monitoring dashboards:
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (default credentials: admin/admin)
+
+## Testing
+
+Postiz includes comprehensive testing:
+
+```bash
+# Run unit tests
+npm run test
+
+# Run end-to-end tests
+npm run test:e2e
+
+# Run performance tests
+npm run test:performance
+```
 
 ## Invest in the Postiz Coin :)
 DMsTbeCfX1crgAse5tver98KAMarPWeP3d6U3Gmmpump

@@ -1,0 +1,34 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-dev python-is-python3 \
+      build-essential pkg-config \
+      libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=3000
+ENV DATABASE_URL=postgresql://postiz-user:postiz-password@postiz-postgres:5432/postiz-db-local
+ENV REDIS_URL=redis://postiz-redis:6379
+ENV FRONTEND_URL=http://localhost:4200
+ENV ONESSO_URL=http://mock-onesso:3002
+ENV JWT_SECRET=onesso-jwt-secret
+ENV PYTHON=/usr/bin/python3
+ENV npm_config_python=/usr/bin/python3
+
+# Create a simple Express server for testing
+RUN npm init -y && \
+    npm install express cors jsonwebtoken
+
+# Create a simple server file
+RUN echo 'const express = require("express");\nconst cors = require("cors");\nconst jwt = require("jsonwebtoken");\n\nconst app = express();\nconst PORT = process.env.PORT || 3000;\nconst JWT_SECRET = process.env.JWT_SECRET || "onesso-jwt-secret";\n\n// Middleware\napp.use(cors());\napp.use(express.json());\n\n// Health check endpoint\napp.get("/api/health", (req, res) => {\n  res.json({\n    status: "ok",\n    timestamp: new Date().toISOString(),\n    service: "postiz-backend",\n    version: "1.0.0"\n  });\n});\n\n// Auth middleware\nconst authenticateToken = (req, res, next) => {\n  const authHeader = req.headers.authorization;\n  \n  if (!authHeader || !authHeader.startsWith("Bearer ")) {\n    return res.status(401).json({ message: "Unauthorized" });\n  }\n  \n  const token = authHeader.split(" ")[1];\n  \n  try {\n    const decoded = jwt.verify(token, JWT_SECRET);\n    req.user = decoded;\n    next();\n  } catch (error) {\n    return res.status(401).json({ message: "Invalid token" });\n  }\n};\n\n// Protected endpoint\napp.get("/api/me", authenticateToken, (req, res) => {\n  res.json({\n    user: req.user,\n    message: "You are authenticated!"\n  });\n});\n\n// Start the server\napp.listen(PORT, () => {\n  console.log(`Backend server running on port ${PORT}`);\n});' > /app/server.js
+
+# Expose the port
+EXPOSE 3000
+
+# Start the server
+CMD ["node", "server.js"]

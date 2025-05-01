@@ -1,0 +1,54 @@
+# ┌───────── Builder ───────────────────────────────────────────────────────────
+FROM node:18-slim AS builder
+WORKDIR /usr/src/app
+
+# Install build deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-dev python-is-python3 \
+      build-essential pkg-config \
+      libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json ./
+
+# Install all deps
+RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+
+# Copy source code
+COPY . .
+
+# └──────────────────────────────────────────────────────────────────────────────
+
+# ┌───────── Runner ────────────────────────────────────────────────────────────
+FROM node:18-slim AS runner
+WORKDIR /usr/src/app
+
+# Install runtime dependencies for canvas
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libcairo2 \
+      libpango-1.0-0 \
+      libpangocairo-1.0-0 \
+      libjpeg62-turbo \
+      libgif7 \
+      librsvg2-2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3002
+ENV JWT_SECRET=mock-onesso-jwt-secret
+ENV FRONTEND_URL=http://localhost:4200
+ENV ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3002,http://localhost:4200,http://localhost:5003
+
+# Copy only built artifacts + prod deps
+COPY --from=builder /usr/src/app/server.js ./
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY package*.json ./
+
+# Expose the port
+EXPOSE 3002
+
+# Start the app
+CMD ["node", "server.js"]
+# └──────────────────────────────────────────────────────────────────────────────

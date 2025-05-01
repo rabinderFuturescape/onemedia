@@ -97,6 +97,96 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// NextAuth.js OIDC configuration endpoint
+app.get('/api/nextauth/.well-known/openid-configuration', (req, res) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  res.json({
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/api/auth/login/onesso`,
+    token_endpoint: `${baseUrl}/api/auth/token`,
+    userinfo_endpoint: `${baseUrl}/api/auth/me`,
+    jwks_uri: `${baseUrl}/api/auth/.well-known/jwks.json`,
+    response_types_supported: ['code'],
+    subject_types_supported: ['public'],
+    id_token_signing_alg_values_supported: ['RS256'],
+    scopes_supported: ['openid', 'profile', 'email'],
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+    claims_supported: ['sub', 'name', 'email', 'picture', 'tenant_id', 'realm_access']
+  });
+});
+
+// JWKS endpoint for NextAuth.js
+app.get('/api/auth/.well-known/jwks.json', (req, res) => {
+  // This is a mock JWKS endpoint
+  res.json({
+    keys: [
+      {
+        kty: 'RSA',
+        use: 'sig',
+        kid: 'mock-key-id',
+        alg: 'RS256',
+        n: 'mock-n-value',
+        e: 'AQAB'
+      }
+    ]
+  });
+});
+
+// Define auth router
+const authRouter = express.Router();
+
+// Token endpoint for NextAuth.js
+authRouter.post('/token', (req, res) => {
+  // This is a simplified token endpoint for testing
+  const code = req.body.code || req.query.code;
+
+  if (!code) {
+    return res.status(400).json({ error: 'invalid_request', error_description: 'Missing code parameter' });
+  }
+
+  // In a real implementation, we would validate the code
+  // For testing, we'll just create a token for the admin user
+  const user = users.find(u => u.id === '1');
+
+  const id_token = jwt.sign(
+    {
+      sub: user.id,
+      name: user.username,
+      email: user.email,
+      picture: 'https://via.placeholder.com/150',
+      tenant_id: user.tenants[0],
+      realm_access: { roles: user.roles }
+    },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  const access_token = jwt.sign(
+    {
+      sub: user.id,
+      username: user.username,
+      email: user.email,
+      roles: user.roles,
+      tenants: user.tenants,
+      permissions: ['*'],
+      active_tenant: user.tenants[0]
+    },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  res.json({
+    access_token,
+    id_token,
+    token_type: 'Bearer',
+    expires_in: 3600,
+    refresh_token: 'mock-refresh-token'
+  });
+});
+
+// Define API router
+const apiRouter = express.Router();
+
 // Register routers
 app.use('/api/auth', authRouter);
 app.use('/api', apiRouter);
@@ -231,11 +321,11 @@ app.get('/api/docs', (req, res) => {
   });
 });
 
-// Auth endpoints
-const authRouter = express.Router();
+// Auth endpoints - already defined above
 
 // Login endpoint
 authRouter.post('/login', (req, res) => {
+  console.log('Login request received:', req.body);
   const { username, password, tenant_id } = req.body;
 
   const user = users.find(u =>
@@ -243,7 +333,10 @@ authRouter.post('/login', (req, res) => {
     u.password === password
   );
 
+  console.log('User found:', user);
+
   if (!user) {
+    console.log('Invalid credentials');
     return res.status(401).json({ message: 'Invalid credentials' });
   }
 
@@ -289,7 +382,7 @@ authRouter.post('/login', (req, res) => {
     { expiresIn: '1h' }
   );
 
-  res.json({
+  const response = {
     access_token: token,
     token_type: 'Bearer',
     expires_in: 3600,
@@ -303,7 +396,11 @@ authRouter.post('/login', (req, res) => {
       active_tenant: tenant_id || user.tenants[0],
       tenant_details: userTenants
     }
-  });
+  };
+
+  console.log('Login successful, sending response:', response);
+
+  res.json(response);
 });
 
 // Mock onesso login flow
@@ -474,9 +571,6 @@ const authorize = (requiredPermissions) => {
     return res.status(403).json({ message: 'Forbidden' });
   };
 };
-
-// Define API routes
-const apiRouter = express.Router();
 
 // Tenant endpoints
 apiRouter.get('/tenants', authenticateToken, (req, res) => {

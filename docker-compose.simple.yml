@@ -1,0 +1,110 @@
+services:
+  # Frontend application
+  postiz-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.simple.fixed7
+    container_name: postiz-frontend
+    restart: always
+    ports:
+      - "4200:4200"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:3000/api
+      - BACKEND_URL=http://postiz-backend:3000/api
+      - BACKEND_INTERNAL_URL=http://postiz-backend:3000/api
+      - FRONTEND_URL=http://localhost:4200
+      - STORAGE_PROVIDER=local
+      - IS_GENERAL=true
+      - NOT_SECURED=true
+      - NEXT_PUBLIC_ONESSO_URL=http://localhost:3002
+      - NEXTAUTH_URL=http://localhost:4200
+      - NEXTAUTH_SECRET=onesso-nextauth-secret
+    depends_on:
+      - postiz-backend
+      - mock-onesso
+    networks:
+      - postiz-network
+
+  # Backend application
+  postiz-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend.simple.fixed
+    container_name: postiz-backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postiz-user:postiz-password@postiz-postgres:5432/postiz-db-local
+      - REDIS_URL=redis://postiz-redis:6379
+      - FRONTEND_URL=http://localhost:4200
+      - ONESSO_URL=http://mock-onesso:3002
+      - JWT_SECRET=onesso-jwt-secret
+    volumes:
+      - postiz-uploads:/app/uploads
+    depends_on:
+      - postiz-postgres
+      - postiz-redis
+      - mock-onesso
+    networks:
+      - postiz-network
+
+  # Mock OneSSO service
+  mock-onesso:
+    build:
+      context: ./var/docker/mock-onesso
+      dockerfile: Dockerfile.final
+    container_name: mock-onesso
+    restart: always
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - JWT_SECRET=onesso-jwt-secret
+      - FRONTEND_URL=http://localhost:4200
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3002,http://localhost:4200,http://localhost:5003
+    networks:
+      - postiz-network
+
+  # PostgreSQL database
+  postiz-postgres:
+    image: postgres:17-alpine
+    container_name: postiz-postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: postiz-password
+      POSTGRES_USER: postiz-user
+      POSTGRES_DB: postiz-db-local
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+    networks:
+      - postiz-network
+
+  # Redis cache
+  postiz-redis:
+    image: redis:7.2
+    container_name: postiz-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - postiz-redis-data:/data
+    networks:
+      - postiz-network
+
+volumes:
+  postgres-volume:
+    external: false
+  postiz-redis-data:
+    external: false
+  postiz-uploads:
+    external: false
+
+networks:
+  postiz-network:
+    external: false

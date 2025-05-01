@@ -14,6 +14,8 @@ import { GoogleProvider } from '@gitroom/frontend/components/auth/providers/goog
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { FarcasterProvider } from '@gitroom/frontend/components/auth/providers/farcaster.provider';
 import WalletProvider from '@gitroom/frontend/components/auth/providers/wallet.provider';
+import { OnessoProvider } from '@gitroom/frontend/components/auth/providers/onesso.provider';
+import { signIn } from 'next-auth/react';
 
 type Inputs = {
   email: string;
@@ -41,16 +43,30 @@ export function Login() {
 
   const onSubmit: SubmitHandler<Inputs> = async (data) => {
     setLoading(true);
-    const login = await fetchData('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ ...data, provider: 'LOCAL' }),
-    });
-
-    if (login.status === 400) {
-      form.setError('email', {
-        message: await login.text(),
+    try {
+      // Use NextAuth credentials provider
+      const result = await signIn('credentials', {
+        redirect: false,
+        email: data.email,
+        password: data.password,
       });
 
+      if (result?.ok) {
+        // Redirect to main application dashboard
+        // The middleware will redirect from / to either /launches or /analytics
+        console.log('Login successful, redirecting to dashboard...');
+        window.location.href = '/';
+      } else {
+        form.setError('email', {
+          message: result?.error || 'Invalid credentials',
+        });
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      form.setError('email', {
+        message: 'An unexpected error occurred',
+      });
       setLoading(false);
     }
   };
@@ -68,6 +84,7 @@ export function Login() {
           <GithubProvider />
         ) : (
           <div className="gap-[5px] flex flex-col">
+            <OnessoProvider />
             <GoogleProvider />
             {!!neynarClientId && <FarcasterProvider />}
             {billingEnabled && <WalletProvider />}

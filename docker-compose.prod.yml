@@ -1,0 +1,266 @@
+version: '3.8'
+
+services:
+  # Frontend service
+  postiz-frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      target: production
+    container_name: postiz-frontend
+    restart: always
+    ports:
+      - "4200:4200"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:3000/api
+      - BACKEND_URL=http://postiz-backend:3000/api
+      - BACKEND_INTERNAL_URL=http://postiz-backend:3000/api
+      - FRONTEND_URL=http://localhost:4200
+      - NEXT_PUBLIC_ONESSO_URL=http://localhost:3002
+      - NEXTAUTH_URL=http://localhost:4200
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-onesso-nextauth-secret}
+    depends_on:
+      - postiz-backend
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:4200/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Backend service
+  postiz-backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: production
+    container_name: postiz-backend
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - postiz-uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postiz-user:postiz-password@postiz-postgres:5432/postiz-db-local
+      - REDIS_URL=redis://postiz-redis:6379
+      - FRONTEND_URL=http://localhost:4200
+      - ONESSO_URL=http://mock-onesso:3002
+      - JWT_SECRET=${JWT_SECRET:-onesso-jwt-secret}
+    depends_on:
+      postiz-postgres:
+        condition: service_healthy
+      postiz-redis:
+        condition: service_healthy
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Static content server
+  postiz-static:
+    image: nginx:alpine
+    container_name: postiz-static
+    restart: always
+    volumes:
+      - ./var/docker/static:/usr/share/nginx/html
+      - ./var/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "5003:80"
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  # Keycloak database
+  keycloak-postgres:
+    image: postgres:14-alpine
+    container_name: keycloak-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-password}
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql/data
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Keycloak service
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.1
+    container_name: keycloak
+    command: start
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-password}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-localhost}
+      KC_HOSTNAME_PORT: 8080
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY: edge
+      KC_HEALTH_ENABLED: true
+    ports:
+      - "8080:8080"
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/auth/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Mock onesso service
+  mock-onesso:
+    build:
+      context: ./var/docker/mock-onesso
+      dockerfile: Dockerfile
+    container_name: mock-onesso
+    restart: always
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      JWT_SECRET: ${JWT_SECRET:-mock-onesso-jwt-secret}
+      FRONTEND_URL: http://localhost:5003
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3002,http://localhost:4200,http://localhost:5003
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  # PostgreSQL database
+  postiz-postgres:
+    image: postgres:17-alpine
+    container_name: postiz-postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postiz-password}
+      POSTGRES_USER: ${POSTGRES_USER:-postiz-user}
+      POSTGRES_DB: ${POSTGRES_DB:-postiz-db-local}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+    networks:
+      - postiz-network
+    healthcheck:
+      test: pg_isready -U ${POSTGRES_USER:-postiz-user} -d ${POSTGRES_DB:-postiz-db-local}
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Redis cache
+  postiz-redis:
+    image: redis:7.2-alpine
+    container_name: postiz-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - postiz-redis-data:/data
+    networks:
+      - postiz-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+volumes:
+  postgres-volume:
+    external: false
+  postiz-redis-data:
+    external: false
+  postiz-config:
+    external: false
+  postiz-uploads:
+    external: false
+  keycloak-postgres-data:
+    external: false
+
+networks:
+  postiz-network:
+    external: false

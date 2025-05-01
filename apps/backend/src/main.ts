@@ -9,6 +9,8 @@ import { AppModule } from './app.module';
 import { SubscriptionExceptionFilter } from '@gitroom/backend/services/auth/permissions/subscription.exception';
 import { HttpExceptionFilter } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { ConfigurationChecker } from '@gitroom/helpers/configuration/configuration.checker';
+import { RequestLoggerMiddleware } from './middleware/request-logger.middleware';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -35,9 +37,46 @@ async function bootstrap() {
   );
 
   app.use(cookieParser());
+  app.use(new RequestLoggerMiddleware().use);
   app.useGlobalFilters(new SubscriptionExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());
 
+  // Configure enhanced Swagger documentation
+  const config = new DocumentBuilder()
+    .setTitle('Postiz API')
+    .setDescription('The Postiz API documentation')
+    .setVersion('1.0')
+    .addTag('auth', 'Authentication endpoints')
+    .addTag('users', 'User management endpoints')
+    .addTag('organizations', 'Organization management endpoints')
+    .addTag('posts', 'Post management endpoints')
+    .addTag('channels', 'Channel management endpoints')
+    .addTag('analytics', 'Analytics endpoints')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+      docExpansion: 'none',
+      filter: true,
+    },
+  });
+
+  // Load original Swagger configuration
   loadSwagger(app);
 
   const port = process.env.PORT || 3000;
@@ -48,6 +87,7 @@ async function bootstrap() {
     checkConfiguration(); // Do this last, so that users will see obvious issues at the end of the startup log without having to scroll up.
 
     Logger.log(`🚀 Backend is running on: http://localhost:${port}`);
+    Logger.log(`📚 API Documentation available at: http://localhost:${port}/api/docs`);
   } catch (e) {
     Logger.error(`Backend failed to start on port ${port}`, e);
   }

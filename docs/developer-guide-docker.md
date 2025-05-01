@@ -2,6 +2,22 @@
 
 This guide explains how to use the Postiz Docker image to test the entire project in a development environment.
 
+## Docker Architecture
+
+Postiz uses a multi-container architecture with optimized Docker images:
+
+1. **Frontend Container**: Next.js application with server-side rendering
+2. **Backend Container**: NestJS API server
+3. **PostgreSQL Container**: Database for the application
+4. **Redis Container**: For caching and session management
+5. **Keycloak Container**: For authentication (when using OneSSO)
+6. **Monitoring Containers**: Prometheus, Grafana, and exporters (optional)
+
+The Docker images are built using multi-stage builds to optimize size and performance:
+- Production images use the `production` target
+- Development images use the `development` target
+- CI/CD images use specific targets for testing
+
 ## Testing Options
 
 You have three options for testing with Docker:
@@ -338,11 +354,66 @@ After building either image type:
    docker compose up -d
    ```
 
+## Monitoring and Observability
+
+Postiz includes a comprehensive monitoring stack with Prometheus and Grafana. To start the monitoring services:
+
+```bash
+docker-compose -f docker-compose.monitoring.yml up -d
+```
+
+This will start:
+- Prometheus for metrics collection
+- Grafana for visualization
+- AlertManager for alerts
+- Node Exporter for host metrics
+- cAdvisor for container metrics
+- Postgres Exporter for PostgreSQL metrics
+- Redis Exporter for Redis metrics
+
+You can access the monitoring dashboards at:
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (default credentials: admin/admin)
+
+The monitoring stack provides:
+- System metrics (CPU, memory, disk, network)
+- Application metrics (request rate, latency, errors)
+- Database metrics (connections, queries, performance)
+- Business metrics (user signups, posts created, active users)
+- Alerting for critical issues
+
+## CI/CD Integration
+
+Postiz includes a GitHub Actions workflow for CI/CD. The workflow:
+1. Runs linting and tests on pull requests
+2. Builds Docker images for the frontend and backend
+3. Runs end-to-end tests in a containerized environment
+4. Deploys to staging when changes are pushed to the develop branch
+5. Runs performance tests on the staging environment
+6. Deploys to production when changes are pushed to the main branch
+
+To run the CI/CD pipeline locally for testing:
+
+```bash
+# Run linting and tests
+npm run lint
+npm run test
+
+# Build Docker images
+docker-compose -f docker-compose.ci.yml build
+
+# Run end-to-end tests
+npm run test:e2e
+
+# Run performance tests
+npm run test:performance
+```
+
 ## Integration with Other Services
 
-### Keycloak Integration
+### Keycloak/OneSSO Integration
 
-To test with Keycloak authentication, refer to the `docker-compose.keycloak.yml` file in the project and the onesso integration documentation.
+To test with Keycloak/OneSSO authentication, refer to the `docker-compose.yml` file in the project and the [OneSSO Integration Guide](./developer-guide-onesso.md).
 
 ### Development Tools
 
@@ -382,3 +453,9 @@ services:
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [Redis Documentation](https://redis.io/documentation)
+- [Keycloak Documentation](https://www.keycloak.org/documentation)
+- [NextAuth.js Documentation](https://next-auth.js.org/getting-started/introduction)
+- [Prometheus Documentation](https://prometheus.io/docs/introduction/overview/)
+- [Grafana Documentation](https://grafana.com/docs/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [k6 Performance Testing Documentation](https://k6.io/docs/)

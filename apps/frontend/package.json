@@ -2,8 +2,12 @@
   "name": "@gitroom/frontend",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "analyze": "ANALYZE=true next build"
+  },
   "devDependencies": {
     "@types/mime": "^3.0.4",
-    "@types/node": "^18.16.9"
+    "@types/node": "^18.16.9",
+    "webpack-bundle-analyzer": "^4.9.1"
   }
 }

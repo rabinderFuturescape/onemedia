@@ -64,24 +64,29 @@ export const DayView = () => {
     calendar;
 
   const options = useMemo(() => {
-    const createdPosts = posts.map((post) => ({
-      integration: [integrations.find((i) => i.id === post.integration.id)!],
-      image: post.integration.picture,
-      identifier: post.integration.providerIdentifier,
-      id: post.integration.id,
-      name: post.integration.name,
-      time: dayjs
-        .utc(post.publishDate)
-        .diff(dayjs.utc(post.publishDate).startOf('day'), 'minute'),
-    }));
+    // Handle case when posts or integrations are undefined
+    if (!posts || !posts.length || !integrations || !integrations.length) {
+      return [];
+    }
 
-    return sortBy(
-      Object.values(
-        groupBy(
-          [
-            ...createdPosts,
-            ...integrations.flatMap((p) =>
-              p.time.flatMap((t) => ({
+    const createdPosts = posts.map((post) => {
+      const integration = integrations.find((i) => i.id === post.integration.id);
+      return {
+        integration: integration ? [integration] : [],
+        image: post.integration.picture,
+        identifier: post.integration.providerIdentifier,
+        id: post.integration.id,
+        name: post.integration.name,
+        time: dayjs
+          .utc(post.publishDate)
+          .diff(dayjs.utc(post.publishDate).startOf('day'), 'minute'),
+      };
+    });
+
+    const integrationsWithTime = integrations && integrations.length > 0
+      ? integrations.flatMap((p) =>
+          p.time && p.time.length > 0
+            ? p.time.flatMap((t) => ({
                 integration: p,
                 identifier: p.identifier,
                 name: p.name,
@@ -89,7 +94,16 @@ export const DayView = () => {
                 image: p.picture,
                 time: t.time,
               }))
-            ),
+            : []
+        )
+      : [];
+
+    return sortBy(
+      Object.values(
+        groupBy(
+          [
+            ...createdPosts,
+            ...integrationsWithTime,
           ],
           (p: any) => p.time
         )
@@ -465,13 +479,13 @@ export const CalendarColumn: FC<{
                       ),
                     }
                   : {})}
-                allIntegrations={integrations.map((p) => ({ ...p }))}
+                allIntegrations={(integrations || []).map((p) => ({ ...p }))}
                 reopenModal={editPost(post)}
                 mutate={reloadCalendarView}
                 integrations={
                   isDuplicate
-                    ? integrations
-                    : integrations
+                    ? (integrations || [])
+                    : (integrations || [])
                         .slice(0)
                         .filter((f) => f.id === data.integration)
                         .map((p) => ({
@@ -493,6 +507,9 @@ export const CalendarColumn: FC<{
   const addModal = useCallback(async () => {
     const signature = await (await fetch('/signatures/default')).json();
 
+    // Ensure integrations is defined and not empty
+    const safeIntegrations = integrations || [];
+
     modal.openModal({
       closeOnClickOutside: false,
       closeOnEscape: false,
@@ -502,8 +519,8 @@ export const CalendarColumn: FC<{
       },
       children: (
         <AddEditModal
-          allIntegrations={integrations.map((p) => ({ ...p }))}
-          integrations={integrations.slice(0).map((p) => ({ ...p }))}
+          allIntegrations={safeIntegrations.map((p) => ({ ...p }))}
+          integrations={safeIntegrations.slice(0).map((p) => ({ ...p }))}
           mutate={reloadCalendarView}
           {...(signature?.id
             ? {
@@ -612,7 +629,7 @@ export const CalendarColumn: FC<{
           : !isBeforeNow) && (
           <div
             className="pb-[2.5px] px-[5px] flex-1 flex"
-            onClick={integrations.length ? addModal : addProvider}
+            onClick={integrations && integrations.length ? addModal : addProvider}
           >
             <div
               className={clsx(
@@ -635,7 +652,7 @@ export const CalendarColumn: FC<{
                 <div
                   className={`w-full h-full rounded-[10px] hover:border hover:border-seventh flex justify-center items-center gap-[20px] opacity-30 grayscale hover:grayscale-0 hover:opacity-100`}
                 >
-                  {integrations.map((selectedIntegrations) => (
+                  {integrations && integrations.length > 0 ? integrations.map((selectedIntegrations) => (
                     <div
                       className="relative"
                       key={selectedIntegrations.identifier}
@@ -671,7 +688,9 @@ export const CalendarColumn: FC<{
                         )}
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="text-center text-gray-400">No integrations available</div>
+                  )}
                 </div>
               )}
             </div>

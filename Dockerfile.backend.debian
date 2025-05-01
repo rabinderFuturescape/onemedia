@@ -1,0 +1,43 @@
+FROM node:20-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install build tools + canvas libs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 \
+      build-essential \
+      pkg-config \
+      libcairo2-dev \
+      libpango1.0-dev \
+      libjpeg-dev \
+      libgif-dev \
+      librsvg2-dev \
+      git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=3000
+ENV PYTHON=/usr/bin/python3
+ENV npm_config_python=/usr/bin/python3
+
+# Install node-gyp globally
+RUN npm install -g node-gyp
+
+# Copy package files
+COPY package.json package-lock.json nx.json tsconfig.base.json ./
+COPY .npmrc ./.npmrc
+
+# Copy the backend app and libraries
+COPY apps/backend ./apps/backend
+COPY libraries ./libraries
+
+# Install dependencies
+RUN npm install --no-optional --no-fund --legacy-peer-deps
+
+# Expose the port
+EXPOSE 3000
+
+# Start the backend app in development mode
+CMD ["npm", "run", "dev:backend"]

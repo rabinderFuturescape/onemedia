@@ -1,0 +1,76 @@
+# ┌────────── Builder Stage ──────────────────────────────────────────────────
+FROM node:18-slim AS builder
+WORKDIR /usr/src/app
+
+# Install build tools + canvas libs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 \
+      build-essential \
+      pkg-config \
+      libcairo2-dev \
+      libpango1.0-dev \
+      libjpeg-dev \
+      libgif-dev \
+      librsvg2-dev \
+      git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for build
+ENV PYTHON=/usr/bin/python3
+ENV npm_config_python=/usr/bin/python3
+
+# Install node-gyp globally
+RUN npm install -g node-gyp
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including devDependencies) but skip scripts
+RUN npm install --legacy-peer-deps --ignore-scripts
+
+# Copy source code
+COPY . .
+# └────────────────────────────────────────────────────────────────────────────
+
+# ┌────────── Final (Runtime) Stage ───────────────────────────────────────────
+FROM node:18-slim AS runner
+WORKDIR /usr/src/app
+
+# Install runtime dependencies for canvas and Python for node-gyp
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 \
+      build-essential \
+      pkg-config \
+      libcairo2-dev \
+      libpango1.0-dev \
+      libjpeg-dev \
+      libgif-dev \
+      librsvg2-dev \
+      git \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3 /usr/bin/python
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3002
+ENV JWT_SECRET=mock-onesso-jwt-secret
+ENV FRONTEND_URL=http://localhost:4200
+ENV ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3002,http://localhost:4200,http://localhost:5003
+ENV PYTHON=/usr/bin/python3
+ENV npm_config_python=/usr/bin/python3
+
+# Copy package files
+COPY package*.json ./
+
+# Install only production dependencies but skip scripts
+RUN npm install --omit=dev --no-optional --no-fund --legacy-peer-deps --ignore-scripts
+
+# Copy built artifacts from builder stage
+COPY --from=builder /usr/src/app/server.js ./
+
+# Expose the port
+EXPOSE 3002
+
+# Start the app
+CMD ["node", "server.js"]
+# └────────────────────────────────────────────────────────────────────────────

@@ -15,6 +15,13 @@ export class OrganizationService {
     private _organizationRepository: OrganizationRepository,
     private _notificationsService: NotificationService,
   ) {}
+
+  async canRegister() {
+    // For now, we'll allow registration by default
+    // In the future, this could check for registration limits, etc.
+    return true;
+  }
+
   async createOrgAndUser(
     body: Omit<CreateOrgUserDto, 'providerToken'> & { providerId?: string },
     ip: string,

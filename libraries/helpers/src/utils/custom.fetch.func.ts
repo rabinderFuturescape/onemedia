@@ -73,6 +73,10 @@ export const customFetch = (
 
 export const fetchBackend = customFetch({
   get baseUrl() {
+    // Use the mock API URL in development
+    if (process.env.NODE_ENV === 'development') {
+      return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4200/api/mock';
+    }
     return process.env.BACKEND_URL!;
   },
 });
