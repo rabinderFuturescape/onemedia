@@ -1,0 +1,64 @@
+services:
+  frontend:
+    build:
+      target: development
+    volumes:
+      - ../../apps/frontend:/app/apps/frontend
+      - ../../node_modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    command: ["npm", "run", "dev", "--workspace=frontend"]
+
+  backend:
+    build:
+      target: development
+    volumes:
+      - ../../apps/backend:/app/apps/backend
+      - ../../node_modules:/app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: ["npm", "run", "dev", "--workspace=backend"]
+
+  auth-service:
+    build:
+      target: development
+    volumes:
+      - ../../apps/auth-service:/usr/src/app/apps/auth-service
+      - ../../node_modules:/usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: ["npm", "run", "start:dev", "--workspace=auth-service"]
+
+  onesso:
+    build:
+      target: development
+    volumes:
+      - ../../apps/onesso:/usr/src/app/apps/onesso
+      - ../../node_modules:/usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: ["npm", "run", "start:dev", "--workspace=onesso"]
+
+  # Development tools
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "8081:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    depends_on:
+      - postgres
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/data
+    depends_on:
+      - redis
+
+volumes:
+  redisinsight-data:

@@ -1,0 +1,148 @@
+services:
+  frontend:
+    build:
+      context: ../../
+      dockerfile: apps/frontend/Dockerfile
+    image: postiz-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_BACKEND_URL=http://backend:3000/api
+      - NEXT_PUBLIC_ONESSO_URL=http://onesso:3002
+    depends_on:
+      - backend
+      - onesso
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  backend:
+    build:
+      context: ../../
+      dockerfile: apps/backend/Dockerfile
+    image: postiz-backend
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - AUTH_SERVICE_URL=http://auth-service:3001/api/auth
+      - DATABASE_URL=postgresql://postiz-user:postiz-password@postgres:5432/postiz-db-local
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+      - auth-service
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  auth-service:
+    build:
+      context: ../../
+      dockerfile: docker/services/auth-service/Dockerfile
+    image: postiz-auth-service
+    ports:
+      - "3002:3001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postiz-user:postiz-password@postgres:5432/postiz-db-local
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-jwt-secret
+      - JWT_EXPIRATION=1d
+    depends_on:
+      - postgres
+      - redis
+
+  onesso:
+    build:
+      context: ../../
+      dockerfile: apps/onesso/Dockerfile
+    image: postiz-onesso
+    ports:
+      - "3003:3002"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postiz-user:postiz-password@postgres:5432/postiz-db-local
+      - REDIS_URL=redis://redis:6379
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=postiz
+      - KEYCLOAK_CLIENT_ID=account
+      - KEYCLOAK_CLIENT_SECRET=your-client-secret
+    depends_on:
+      - postgres
+      - redis
+      - keycloak
+
+  postgres:
+    build:
+      context: ../../
+      dockerfile: docker/services/postgres/Dockerfile
+    image: postiz-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postiz-user
+      - POSTGRES_PASSWORD=postiz-password
+      - POSTGRES_DB=postiz-db-local
+      - NODE_ENV=${NODE_ENV:-development}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postiz-user", "-d", "postiz-db-local"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  redis:
+    build:
+      context: ../../
+      dockerfile: docker/services/redis/Dockerfile
+    image: postiz-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  keycloak:
+    build:
+      context: ../../
+      dockerfile: docker/services/keycloak/Dockerfile
+    image: postiz-keycloak
+    ports:
+      - "8080:8080"
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/postiz-db-local
+      - KC_DB_USERNAME=postiz-user
+      - KC_DB_PASSWORD=postiz-password
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_ENABLED=true
+      - KC_PROXY=edge
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  keycloak-data:

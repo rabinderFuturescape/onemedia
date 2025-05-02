@@ -1,0 +1,56 @@
+services:
+  frontend:
+    build:
+      target: test
+    environment:
+      - NODE_ENV=test
+      - NEXT_PUBLIC_BACKEND_URL=http://backend:3000/api
+      - NEXT_PUBLIC_ONESSO_URL=http://mock-onesso:3002
+    command: ["npm", "run", "test", "--workspace=frontend"]
+    depends_on:
+      - backend
+      - mock-onesso
+
+  backend:
+    build:
+      target: test
+    environment:
+      - NODE_ENV=test
+      - AUTH_SERVICE_URL=http://mock-onesso:3001/api/auth
+    command: ["npm", "run", "test", "--workspace=backend"]
+    depends_on:
+      - postgres
+      - redis
+      - mock-onesso
+
+  mock-onesso:
+    build:
+      context: ../../
+      dockerfile: docker/services/mock-onesso/Dockerfile
+    image: mock-onesso
+    ports:
+      - "3002:3002"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=test
+
+  test-onesso:
+    build:
+      context: ../../
+      dockerfile: docker/services/test-onesso/Dockerfile
+    image: test-onesso
+    environment:
+      - NODE_ENV=test
+      - ONESSO_URL=http://mock-onesso:3002
+      - BACKEND_URL=http://backend:3000
+    depends_on:
+      - mock-onesso
+      - backend
+    command: ["npm", "test"]
+
+  postgres:
+    environment:
+      - POSTGRES_DB=postiz-test-db
+
+  redis:
+    command: ["redis-server", "--save", "\"\"", "--appendonly", "no"]  # Disable persistence for tests

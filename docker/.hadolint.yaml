@@ -1,0 +1,14 @@
+# Hadolint configuration file
+
+# Ignore specific rules globally
+ignored:
+  - DL3059  # Multiple consecutive RUN instructions (sometimes this is more readable)
+  - SC2034   # WORKDIR appears unused (we're using it in templates)
+  - DL3003   # Use WORKDIR to switch to a directory (we're using it in templates)
+
+# Customize specific rules
+trustedRegistries:
+  - docker.io
+  - quay.io
+  - gcr.io
+  - ghcr.io

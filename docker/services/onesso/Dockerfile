@@ -1,9 +1,8 @@
 # syntax=docker/dockerfile:1.4
-# Stage 1: Builder
-FROM node:20-alpine AS builder
+# Stage 1: Development
+FROM node:20-alpine AS development
 
-# Set working directory
-WORKDIR /app
+WORKDIR /usr/src/app
 
 # 1) Install native build tools
 RUN apk add --no-cache \
@@ -27,40 +26,38 @@ RUN npm config set registry https://registry.npmjs.org/ \
  && npm config set fetch-retry-maxtimeout 120000 \
  && npm install -g npm@latest
 
-# 3) Copy package files first to leverage Docker layer caching
+# 3) Copy lockfiles
 COPY package.json package-lock.json ./
-COPY nx.json tsconfig.base.json ./
-
-# Create directory structure
-RUN mkdir -p apps/backend
+COPY apps/onesso/package.json ./apps/onesso/
 
 # 4) Use BuildKit cache for npm downloads & install
 RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
     npm ci --legacy-peer-deps --ignore-scripts
 
-# 5) Copy ALL source files to ensure build scripts are present
+# Copy the rest of the application code
 COPY . .
 
-# 6) Explicitly run the update-plugins script if it exists
-RUN if [ -f build.plugins.js ]; then npm run update-plugins; fi
+# Build the application
+RUN npm run build --workspace=onesso
 
-# 7) Run prisma generate
-RUN npm run prisma-generate
-
-# 8) Build the application
-RUN npx nx run backend:build:production
-
-# 9) Remove build tools to shrink image
+# Remove build tools to shrink image
 RUN apk del make g++ linux-headers \
     && rm -rf /var/cache/apk/*
 
-# Stage 2: Runner
-FROM node:20-alpine AS runner
+# Stage 2: Test
+FROM development AS test
 
-WORKDIR /app
+ENV NODE_ENV=test
 
-# Set environment variables
-ENV NODE_ENV=production
+CMD ["npm", "run", "test", "--workspace=onesso"]
+
+# Stage 3: Production
+FROM node:20-alpine AS production
+
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+
+WORKDIR /usr/src/app
 
 # Install minimal production dependencies
 RUN apk add --no-cache \
@@ -76,23 +73,24 @@ RUN npm config set registry https://registry.npmjs.org/ \
 
 # Copy package files for production dependencies
 COPY package.json package-lock.json ./
-COPY nx.json tsconfig.base.json ./
-
-# Create directory structure
-RUN mkdir -p apps/backend
+COPY apps/onesso/package.json ./apps/onesso/
 
 # Use BuildKit cache for npm downloads & install production dependencies
 RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
     npm ci --only=production --legacy-peer-deps --ignore-scripts
 
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
+# Copy built application from development stage
+COPY --from=development /usr/src/app/dist ./dist
 
-# Set user to non-root for security
-USER node
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN chown -R appuser:appgroup /usr/src/app
+USER appuser
 
-# Expose the port the app will run on
-EXPOSE 3001
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3002/health || exit 1
 
-# Start the application
-CMD ["node", "dist/apps/backend/main"]
+EXPOSE 3002
+
+CMD ["node", "dist/main"]

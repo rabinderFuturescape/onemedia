@@ -107,7 +107,7 @@ Postiz follows a microservices architecture with the following components:
 - **Monitoring**: Prometheus and Grafana for monitoring and alerting
 
 ## Quick Start
-To have the project up and running, please follow the [Quick Start Guide](https://docs.postiz.com/quickstart)
+To have the project up and running, please follow these instructions:
 
 ### Prerequisites
 
@@ -130,28 +130,94 @@ cd onemedia
 npm install
 ```
 
-3. Start the development environment:
+### Building and Running with Docker
 
-```bash
-docker-compose up -d
-```
+#### Option 1: Using BuildKit (Recommended)
 
-4. Access the application:
-   - Frontend: http://localhost:4200
-   - Backend API: http://localhost:3000/api
-   - API Documentation: http://localhost:3000/api/docs
-   - Keycloak: http://localhost:8080/auth
+1. **Build all services with BuildKit**
+
+   ```bash
+   ./build-with-buildkit.sh
+   ```
+
+   This will build all services with BuildKit for better performance.
+
+2. **Run all services**
+
+   ```bash
+   docker-compose -f docker/compose/docker-compose.yml up -d
+   ```
+
+#### Option 2: Build and Run Infrastructure First
+
+1. **Build and run infrastructure services**
+
+   ```bash
+   ./build-infra.sh
+   ```
+
+   This will build and start the following services:
+   - PostgreSQL
+   - Redis
+   - Keycloak
+
+2. **Build and run application services**
+
+   ```bash
+   ./build-sequential.sh
+   ```
+
+   This will build and start the following services:
+   - Backend (Nest.js)
+   - Frontend (Next.js)
+   - OneSSO
+   - Auth Service
+
+#### Option 3: Running in Development Mode
+
+1. **Build and run infrastructure services**
+
+   ```bash
+   ./build-infra.sh
+   ```
+
+2. **Run the application in development mode**
+
+   ```bash
+   ./run-app.sh
+   ```
+
+   This will start all application services in development mode with hot reloading.
+
+### Access the Application
+
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:3001
+- OneSSO: http://localhost:3003
+- Auth Service: http://localhost:3002
+- Keycloak: http://localhost:8080
+
+### Admin Credentials
+
+- Username: admin@example.com
+- Password: admin
 
 ### Development
 
-For local development, you can run the frontend and backend separately:
+For local development, you can use the following commands:
 
 ```bash
 # Run frontend in development mode
-npm run dev:frontend
+npm run start:dev --workspace=frontend
 
 # Run backend in development mode
-npm run dev:backend
+npm run start:dev --workspace=backend
+
+# Run onesso in development mode
+npm run start:dev --workspace=onesso
+
+# Run auth-service in development mode
+npm run start:dev --workspace=auth-service
 ```
 
 ## Developer Resources
@@ -159,6 +225,7 @@ npm run dev:backend
 - [onesso Authentication Guide](docs/developer-guide-onesso.md): How to run the application with onesso authentication
 - [Folder Structure Guide](FOLDER_STRUCTURE.md): Standardized folder structure for the codebase
 - [API Documentation](http://localhost:3000/api/docs): Interactive API documentation
+- [BuildKit Guide](BUILDKIT.md): How to use BuildKit for faster Docker builds
 
 ## Deployment
 

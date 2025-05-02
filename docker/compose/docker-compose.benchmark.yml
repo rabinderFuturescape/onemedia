@@ -1,0 +1,16 @@
+services:
+  auth-service:
+    build:
+      context: ../../
+      dockerfile: docker/services/auth-service/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: postiz-auth-service-benchmark
+
+  onesso:
+    build:
+      context: ../../
+      dockerfile: docker/services/onesso/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: postiz-onesso-benchmark

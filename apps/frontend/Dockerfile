@@ -1,122 +1,91 @@
-# Multi-stage build for frontend
+# syntax=docker/dockerfile:1.4
+# Stage 1: Builder
 FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++ git
+# 1) Install native build tools
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    libstdc++ \
+    linux-headers \
+    pkgconfig \
+    pixman-dev \
+    cairo-dev \
+    pango-dev \
+    giflib-dev \
+    libjpeg-turbo-dev \
+    libpng-dev
 
-# Add package manager cache to volume for better performance
-RUN mkdir -p /app/.npm
-ENV npm_config_cache=/app/.npm
-ENV PYTHON=/usr/bin/python3
+# 2) Configure npm for resilience
+RUN npm config set registry https://registry.npmjs.org/ \
+ && npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm install -g npm@latest
 
-# Install node-gyp globally
-RUN npm install -g node-gyp
+# 3) Copy package files first to leverage Docker layer caching
+COPY package.json package-lock.json ./
+COPY nx.json tsconfig.base.json ./
 
-# Install dependencies first (for better layer caching)
-COPY package.json package-lock.json nx.json tsconfig.base.json ./
-COPY apps/frontend/package.json ./apps/frontend/
+# Create directory structure
+RUN mkdir -p apps/frontend
 
-# Install dependencies with ci for exact versions and skip optional dependencies
-RUN npm ci --no-fund --quiet --no-optional
+# 4) Use BuildKit cache for npm downloads & install
+RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
+    npm ci --legacy-peer-deps --ignore-scripts
 
-# Copy source code
-COPY apps/frontend ./apps/frontend
-COPY libraries ./libraries
+# 5) Copy ALL source files to ensure build scripts are present
+COPY . .
 
-# Build the application for production
-RUN npm run build:frontend
+# 6) Explicitly run the update-plugins script if it exists
+RUN if [ -f build.plugins.js ]; then npm run update-plugins; fi
 
-# Production image
-FROM node:20-alpine AS production
+# 7) Run prisma generate
+RUN npm run prisma-generate
 
-# Set working directory
+# 8) Build the application
+RUN npx nx run frontend:build:production
+
+# Stage 2: Runner
+FROM node:20-alpine AS runner
+
 WORKDIR /app
-
-# Install build dependencies for production
-RUN apk add --no-cache python3 make g++ git
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV PORT=4200
-ENV NEXT_PUBLIC_BACKEND_URL=http://localhost:3000/api
-ENV BACKEND_URL=http://postiz-backend:3000/api
-ENV BACKEND_INTERNAL_URL=http://postiz-backend:3000/api
-ENV FRONTEND_URL=http://localhost:4200
-ENV STORAGE_PROVIDER=local
-ENV IS_GENERAL=true
-ENV NOT_SECURED=true
-ENV NEXT_PUBLIC_ONESSO_URL=http://localhost:3002
-ENV NEXTAUTH_URL=http://localhost:4200
-ENV NEXTAUTH_SECRET=onesso-nextauth-secret
-ENV PYTHON=/usr/bin/python3
 
-# Install only production dependencies
-COPY --from=builder /app/package.json /app/package-lock.json ./
-COPY --from=builder /app/apps/frontend/package.json ./apps/frontend/
-RUN npm ci --only=production --no-fund --quiet --no-optional
+# Configure npm for resilience
+RUN npm config set registry https://registry.npmjs.org/ \
+ && npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm install -g npm@latest
 
-# Copy only the built application
-COPY --from=builder /app/dist/apps/frontend ./
+# Copy package files for production dependencies
+COPY package.json package-lock.json ./
+COPY nx.json tsconfig.base.json ./
 
-# Add non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001 && \
-    chown -R nextjs:nodejs /app
+# Create directory structure
+RUN mkdir -p apps/frontend
 
-# Switch to non-root user
-USER nextjs
+# Use BuildKit cache for npm downloads & install production dependencies
+RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
+    npm ci --only=production --legacy-peer-deps --ignore-scripts
 
-# Expose the port
-EXPOSE 4200
+# Copy built application from builder stage
+COPY --from=builder /app/dist/apps/frontend/.next ./.next
+COPY --from=builder /app/dist/apps/frontend/public ./public
+COPY --from=builder /app/dist/apps/frontend/next.config.js ./
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget -q -O - http://localhost:4200/api/health || exit 1
+# Set user to non-root for security
+USER node
+
+# Expose the port the app will run on
+EXPOSE 3000
 
 # Start the application
-CMD ["npm", "start"]
-
-# Development image
-FROM node:20-alpine AS development
-
-# Set working directory
-WORKDIR /app
-
-# Install build dependencies for development
-RUN apk add --no-cache python3 make g++ git
-
-# Copy package files
-COPY package.json package-lock.json nx.json tsconfig.base.json ./
-
-# Copy the frontend app and libraries
-COPY apps/frontend ./apps/frontend
-COPY libraries ./libraries
-
-# Set Python path
-ENV PYTHON=/usr/bin/python3
-
-# Install dependencies with more verbose output for debugging
-RUN npm ci --no-fund --no-optional
-
-# Set environment variables
-ENV NODE_ENV=development
-ENV PORT=4200
-ENV NEXT_PUBLIC_BACKEND_URL=http://localhost:3000/api
-ENV BACKEND_URL=http://postiz-backend:3000/api
-ENV BACKEND_INTERNAL_URL=http://postiz-backend:3000/api
-ENV FRONTEND_URL=http://localhost:4200
-ENV STORAGE_PROVIDER=local
-ENV IS_GENERAL=true
-ENV NOT_SECURED=true
-ENV NEXT_PUBLIC_ONESSO_URL=http://localhost:3002
-ENV NEXTAUTH_URL=http://localhost:4200
-ENV NEXTAUTH_SECRET=onesso-nextauth-secret
-
-# Expose the port
-EXPOSE 4200
-
-# Start the frontend app in development mode
-CMD ["npm", "run", "dev:frontend"]
+CMD ["node", "server.js"]
